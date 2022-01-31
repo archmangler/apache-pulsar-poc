@@ -1,10 +1,32 @@
 # Apache Pulsar Development with Golang
 
-A quick and simple example for 
+- A quick and simple example demonstrating the use of Apache Pulsar as an alternative to Kafka for a microservices common messaging bus.
+- Golang is used to implement the client producer and consumers
 
+# How to run the demo
 
-# Tasks
+- Something like this:
 
+```
+#!/bin/bash
+#
+#run the pulsar standalone container
+docker run  -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar apachepulsar/pulsar-standalone
+
+#build and run the producer
+cd producer
+go build producer.go
+./producer
+
+#build and run the consumer
+cd consumer/
+go build consumer.go
+./consumer
+```
+
+# Development Tasks
+
+```
 [] Setup
  [x] Run Pulsar Brokers
   [x] create message  topics
@@ -12,11 +34,13 @@ A quick and simple example for
   [x] produce messages ok
  [x] Run consumer code (go)
   [x] consume messages
-
-[] Configure shared consumer pooling with read from "latest unread message" 
-[] Implement as containerized services
+[x] Configure shared consumer pooling with read from "latest unread message" 
+[] Implement as containerized services (docker)
  [] consumer
  [] producer
+[] Benchamrk performance 
+[] Compare with Kafka on a comparable basis
+```
 
 # Test Results
 
