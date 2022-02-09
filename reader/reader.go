@@ -74,35 +74,9 @@ func getFiles(aDir string) []string {
 	return theFiles
 }
 
-func main() {
+func streamAll(reader pulsar.Reader, startMsgIndex int64, stopMsgIndex int64) {
 
-	client, err := pulsar.NewClient(
-		pulsar.ClientOptions{
-			URL:               "pulsar://localhost:6650",
-			OperationTimeout:  30 * time.Second,
-			ConnectionTimeout: 30 * time.Second,
-		})
-
-	if err != nil {
-		log.Fatalf("Could not instantiate Pulsar client: %v", err)
-	}
-
-	defer client.Close()
-
-	reader, err := client.CreateReader(pulsar.ReaderOptions{
-		Topic:          "ragnarok/transactions/requests",
-		StartMessageID: pulsar.EarliestMessageID(),
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer reader.Close()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	read := false
 
 	for reader.HasNext() {
 
@@ -121,36 +95,49 @@ func main() {
 		//Can I store it somewhere? Perhaps a map ? or even on disk in a file ?
 		//In other words: Can I write a byte[] slice to a file? Yes!
 		msgIndex := msg.ID().EntryID()
-		fname := strconv.FormatInt(msgIndex, 10) + ".dat"
 
-		fmt.Println("written bytes: ", writeBytesToFile(fname, myBytes))
+		if msgIndex == startMsgIndex {
+			fmt.Println("start read: ", msgIndex)
+			read = true
+		}
 
-		fmt.Printf("Received message msgId: %#v -- content: '%s' published at %v\n",
-			msg.ID(), string(msg.Payload()), msg.PublishTime())
+		if msgIndex > stopMsgIndex {
+			fmt.Println("stop reading: ", msgIndex)
+			read = false
+		}
 
-		/* //FYI - to save and rereead a msgId from store: https://githubmemory.com/@storm-5
-		msgId := msg.ID()
-		msgIdBytes := msgId.Serialize()
-		idNew, _ := pulsar.DeserializeMessageID(msgIdBytes)
+		if read == false {
 
-		readerInclusive, err := client.CreateReader(pulsar.ReaderOptions{
-			Topic:                   "ragnarok/transactions/requests",
-			StartMessageID:          idNew,
-			StartMessageIDInclusive: true,
-		})
+			fmt.Println("skipping ", msgIndex)
+
+		} else {
+
+			fname := strconv.FormatInt(msgIndex, 10) + ".dat"
+
+			fmt.Println("written bytes: ", writeBytesToFile(fname, myBytes))
+
+			fmt.Printf("Received message msgId: %#v -- content: '%s' published at %v\n",
+				msg.ID(), string(msg.Payload()), msg.PublishTime())
+
+		}
+
+		/*
+			//FYI - to save and reread a msgId from store: https://githubmemory.com/@storm-5
+			msgId := msg.ID()
+			msgIdBytes := msgId.Serialize()
+			idNew, _ := pulsar.DeserializeMessageID(msgIdBytes)
+
+			readerInclusive, err := client.CreateReader(pulsar.ReaderOptions{
+				Topic:                   "ragnarok/transactions/requests",
+				StartMessageID:          idNew,
+				StartMessageIDInclusive: true,
+			})
 		*/
 	}
 
-	//Can I read back the data associated with a given EntryID, from the external data source (e.g file/redis)?
-	//1. [x] Read all files in ./data/
-	//2. [x] Iterate through the filename list
-	//3. [x] Get the contents of each file for a msgId object
-	//4. [x] Open a reader and
-	//5. [x] read with the msgId
-	//6. [x] Print data to output
+}
 
-	//8. [] Input startRead and stopRead parameters to constrain the sequence
-	//7. [] put data in format that redis can store ??
+func retrieveRange(client pulsar.Client) {
 
 	someFiles := getFiles("./data/")
 
@@ -193,8 +180,62 @@ func main() {
 			log.Fatal(err)
 		}
 
-		fmt.Println("retrieved message -> ", string(msg.Payload()))
+		//fmt.Println("retrieved message -> ", string(msg.Payload()))
+		fmt.Printf("Retrieved message ID message msgId: %#v -- content: '%s' published at %v\n",
+			msg.ID(), string(msg.Payload()), msg.PublishTime())
 
 	}
+}
+
+func main() {
+
+	client, err := pulsar.NewClient(
+		pulsar.ClientOptions{
+			URL:               "pulsar://localhost:6650",
+			OperationTimeout:  30 * time.Second,
+			ConnectionTimeout: 30 * time.Second,
+		})
+
+	if err != nil {
+		log.Fatalf("Could not instantiate Pulsar client: %v", err)
+	}
+
+	defer client.Close()
+
+	reader, err := client.CreateReader(pulsar.ReaderOptions{
+		Topic:          "ragnarok/transactions/requests",
+		StartMessageID: pulsar.EarliestMessageID(),
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer reader.Close()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var startMsgId int64 = 55
+	var stopMsgId int64 = 66
+
+	//stream all the messages from the earliest to latest
+	//pick a subset between a start and stop id
+	streamAll(reader, startMsgId, stopMsgId)
+
+	//retrieve the picked range
+	retrieveRange(client)
+
+	//Can I read back the data associated with a given EntryID, from the external data source (e.g file/redis)?
+	//1. [x] Read all files in ./data/
+	//2. [x] Iterate through the filename list
+	//3. [x] Get the contents of each file for a msgId object
+	//4. [x] Open a reader and
+	//5. [x] read with the msgId
+	//6. [x] Print data to output
+
+	//8. [] Input startRead and stopRead parameters to constrain the sequence
+	//7. [] put data in format that redis can store ??
 
 }
